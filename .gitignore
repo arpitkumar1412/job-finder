@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Secrets — never commit these
+service_account.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Model cache (optional – can be large)
+# sentence_transformers/

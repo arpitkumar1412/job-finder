@@ -1,0 +1,9 @@
+Experienced software engineer with 5+ years of experience in Python, JavaScript,
+and cloud technologies. Skilled in building scalable web applications, REST APIs,
+and data pipelines.
+
+REPLACE THIS FILE WITH YOUR ACTUAL RESUME TEXT.
+
+Skills: Python, JavaScript, TypeScript, React, Node.js, AWS, GCP, Docker,
+Kubernetes, PostgreSQL, MongoDB, Redis, CI/CD, Git, Agile, Machine Learning,
+NLP, Data Engineering.
