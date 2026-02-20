@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Job Matching Agent — Phase 1
-=============================
-Fetches job postings from Greenhouse & Lever, computes cosine similarity
-against a local resume, and writes matching results to Google Sheets.
+Job Matching Agent
+==================
+Fetches job postings from Greenhouse & Lever, scores them with Gemini,
+tailors a LaTeX resume per matched job via Claude, compiles to PDF,
+uploads to Google Drive, and writes everything to Google Sheets.
 """
 
 from __future__ import annotations
 
 import logging
-import pathlib
 import sys
 import time
 from typing import Any
@@ -17,8 +17,11 @@ from typing import Any
 import config
 from fetchers.greenhouse import fetch_all_greenhouse_jobs
 from fetchers.lever import fetch_all_lever_jobs
-from matcher.similarity import rank_jobs
-from sheets.sheets_writer import write_matches
+from matcher.similarity import filter_jobs
+from resume.tailor import tailor_resumes_batch
+from resume.compiler import compile_latex
+from resume.drive_uploader import upload_pdf
+from sheets.sheets_writer import write_matches, clear_sheet
 
 # ---------- Logging setup ----------
 logging.basicConfig(
@@ -27,20 +30,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("main")
-
-
-def load_resume(path: str = config.RESUME_PATH) -> str:
-    """Read resume text from a local file."""
-    resume_file = pathlib.Path(path)
-    if not resume_file.exists():
-        logger.error("Resume file not found: %s", resume_file.resolve())
-        sys.exit(1)
-    text = resume_file.read_text(encoding="utf-8").strip()
-    if not text:
-        logger.error("Resume file is empty: %s", resume_file.resolve())
-        sys.exit(1)
-    logger.info("Loaded resume (%d chars) from %s", len(text), resume_file)
-    return text
 
 
 def fetch_all_jobs() -> list[dict[str, Any]]:
@@ -63,57 +52,92 @@ def fetch_all_jobs() -> list[dict[str, Any]]:
 def print_summary(
     total_fetched: int,
     matches: list[dict[str, Any]],
+    resumes_generated: int,
     rows_written: int,
     elapsed: float,
 ) -> None:
     """Print a human-readable summary to stdout."""
     print("\n" + "=" * 60)
-    print("  JOB MATCHING PIPELINE — SUMMARY")
+    print("  JOB AGENT PIPELINE — SUMMARY")
     print("=" * 60)
     print(f"  Total jobs fetched       : {total_fetched}")
-    print(f"  Similarity threshold     : {config.SIMILARITY_THRESHOLD}%")
-    print(f"  Jobs above threshold     : {len(matches)}")
+    print(f"  Gemini model             : {config.GEMINI_MODEL}")
+    print(f"  Score threshold          : {config.SCORE_THRESHOLD}")
+    print(f"  Jobs accepted            : {len(matches)}")
+    print(f"  Resumes tailored         : {resumes_generated}")
     print(f"  Rows written to Sheets   : {rows_written}")
     print(f"  Elapsed time             : {elapsed:.1f}s")
 
     if matches:
-        print("\n  Top 10 matches:")
-        print(f"  {'Score':>6}  {'Company':<18} {'Title'}")
-        print("  " + "-" * 56)
-        for m in matches[:10]:
+        print(f"\n  {'Score':>5}  {'Type':<9} {'Company':<16} {'Title':<42} {'Resume'}")
+        print("  " + "-" * 90)
+        for m in matches[:25]:
+            resume_link = m.get("resume_link", "")
+            resume_tag = "✓" if resume_link else "—"
             print(
-                f"  {m['similarity_score']:>5.1f}%  "
-                f"{m['company']:<18} "
-                f"{m['title'][:50]}"
+                f"  {m.get('role_score', 0):>5}  "
+                f"{m.get('role_type', '?'):<9} "
+                f"{m['company']:<16} "
+                f"{m['title'][:42]:<42} "
+                f"{resume_tag}"
             )
+        if len(matches) > 25:
+            print(f"  … and {len(matches) - 25} more")
     else:
-        print("\n  No jobs matched the threshold.")
+        print("\n  No jobs matched the filter.")
     print("=" * 60 + "\n")
 
 
 def main() -> None:
-    """Run the full Phase 1 pipeline."""
+    """Run the full pipeline: fetch → score → tailor → upload → sheets."""
     t0 = time.time()
 
-    # 1. Load resume
-    logger.info("Step 1/5 — Loading resume")
-    resume_text = load_resume()
-
-    # 2. Fetch jobs
-    logger.info("Step 2/5 — Fetching jobs from all sources")
+    # 1. Fetch jobs
+    logger.info("Step 1/5 — Fetching jobs from all sources")
     all_jobs = fetch_all_jobs()
     if not all_jobs:
-        logger.warning("No jobs fetched — nothing to match.")
-        print_summary(0, [], 0, time.time() - t0)
+        logger.warning("No jobs fetched — nothing to filter.")
+        print_summary(0, [], 0, 0, time.time() - t0)
         return
 
-    # 3. Compute similarity & filter
-    logger.info("Step 3/5 — Computing similarity scores")
-    matches = rank_jobs(resume_text, all_jobs, threshold=config.SIMILARITY_THRESHOLD)
+    # 2. Filter via Gemini
+    logger.info("Step 2/5 — Scoring jobs with Gemini (%s, threshold=%d)",
+                config.GEMINI_MODEL, config.SCORE_THRESHOLD)
+    matches = filter_jobs(all_jobs)
 
-    # 4. Write to Google Sheets
+    # 3. Tailor resumes for APPLY matches (batch API + prompt caching)
+    logger.info("Step 3/5 — Tailoring resumes with Claude (%s)", config.CLAUDE_MODEL)
+    resumes_generated = 0
+
+    # Collect APPLY jobs that need a tailored resume
+    apply_jobs = [j for j in matches if j.get("recommendation") == "APPLY"]
+    logger.info("%d APPLY jobs need tailored resumes.", len(apply_jobs))
+
+    if apply_jobs:
+        # Batch-tailor all resumes in one API call (50 % batch + prompt-cache savings)
+        tailored: dict[int, str] = tailor_resumes_batch(apply_jobs)
+
+        # Compile each tailored LaTeX → PDF and upload to Drive
+        for idx, job in enumerate(apply_jobs):
+            if idx not in tailored:
+                logger.warning("No tailored LaTeX for %s — %s, skipping.", job.get("company"), job.get("title"))
+                continue
+            try:
+                pdf_bytes = compile_latex(tailored[idx], job)
+                file_id, web_link = upload_pdf(pdf_bytes, job)
+                job["resume_id"] = file_id
+                job["resume_link"] = web_link
+                resumes_generated += 1
+            except Exception as exc:
+                logger.error(
+                    "Compile/upload failed for %s — %s: %s",
+                    job.get("company"), job.get("title"), exc,
+                )
+
+    # 4. Clear old data & write to Google Sheets
     logger.info("Step 4/5 — Writing matches to Google Sheets")
     try:
+        clear_sheet()
         rows_written = write_matches(matches)
     except Exception as exc:
         logger.error("Failed to write to Google Sheets: %s", exc)
@@ -122,7 +146,7 @@ def main() -> None:
 
     # 5. Summary
     logger.info("Step 5/5 — Done")
-    print_summary(len(all_jobs), matches, rows_written, time.time() - t0)
+    print_summary(len(all_jobs), matches, resumes_generated, rows_written, time.time() - t0)
 
 
 if __name__ == "__main__":

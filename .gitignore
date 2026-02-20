@@ -14,10 +14,16 @@ env/
 
 # Secrets — never commit these
 service_account.json
+client_secret.json
+drive_token.json
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.synctex.gz
+resume_template.pdf
 
 # OS files
 .DS_Store
 Thumbs.db
-
-# Model cache (optional – can be large)
-# sentence_transformers/

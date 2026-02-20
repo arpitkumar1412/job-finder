@@ -33,8 +33,18 @@ HEADER_ROW = [
     "company",
     "title",
     "location",
-    "similarity_score",
+    "role_score",
+    "recommendation",
+    "role_type",
+    "backend_relevance",
+    "title_relevance",
+    "seniority_match",
+    "tech_stack_match",
+    "penalty",
+    "reason",
     "apply_url",
+    "resume_id",
+    "resume_link",
 ]
 
 
@@ -53,6 +63,18 @@ def _ensure_header(worksheet: gspread.Worksheet) -> None:
     if not existing:
         worksheet.append_row(HEADER_ROW, value_input_option="USER_ENTERED")
         logger.info("Wrote header row to sheet.")
+
+
+def clear_sheet() -> None:
+    """Remove all data rows (keep nothing — header will be re-added)."""
+    client = _get_client()
+    try:
+        sheet = client.open(config.GOOGLE_SHEET_NAME)
+    except gspread.SpreadsheetNotFound:
+        return
+    ws = sheet.sheet1
+    ws.clear()
+    logger.info("Cleared all rows from '%s'.", config.GOOGLE_SHEET_NAME)
 
 
 def write_matches(matches: list[dict[str, Any]]) -> int:
@@ -97,8 +119,18 @@ def write_matches(matches: list[dict[str, Any]]) -> int:
             m.get("company", ""),
             m.get("title", ""),
             m.get("location", ""),
-            str(m.get("similarity_score", "")),
+            str(m.get("role_score", "")),
+            m.get("recommendation", ""),
+            m.get("role_type", ""),
+            str(m.get("backend_relevance", "")),
+            str(m.get("title_relevance", "")),
+            str(m.get("seniority_match", "")),
+            str(m.get("tech_stack_match", "")),
+            str(m.get("penalty", "")),
+            m.get("match_reasons", ""),
             m.get("apply_url", ""),
+            m.get("resume_id", ""),
+            m.get("resume_link", ""),
         ])
 
     # Batch append for efficiency
