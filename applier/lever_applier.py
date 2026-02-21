@@ -22,7 +22,6 @@ from applier.driver import (
     safe_click,
     safe_fill,
     upload_file,
-    wait_and_find,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,7 +83,7 @@ def apply_lever(job: dict[str, Any], resume_path: str) -> tuple[bool, str]:
             # Wait for confirmation
             time.sleep(config.AUTO_APPLY_WAIT * 2)
             page_text = driver.page_source.lower()
-            if "thank" in page_text or "submitted" in page_text or "received" in page_text or "application" in page_text:
+            if "thank" in page_text or "submitted" in page_text or "received" in page_text or "application submitted" in page_text:
                 logger.info("Successfully applied to [%s]", label)
                 return True, "Application submitted successfully"
             else:

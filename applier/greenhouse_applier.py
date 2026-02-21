@@ -18,11 +18,9 @@ from selenium.webdriver.common.by import By
 import config
 from applier.driver import (
     create_driver,
-    download_resume_from_drive,
     safe_click,
     safe_fill,
     upload_file,
-    wait_and_find,
 )
 
 logger = logging.getLogger(__name__)
