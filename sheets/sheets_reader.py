@@ -91,10 +91,20 @@ def read_apply_jobs() -> list[dict[str, Any]]:
 
 
 def _detect_source(apply_url: str) -> str:
-    """Detect the ATS source from the apply URL."""
-    url_lower = apply_url.lower()
-    if "greenhouse.io" in url_lower or "boards.greenhouse" in url_lower:
-        return "greenhouse"
-    if "lever.co" in url_lower or "jobs.lever" in url_lower:
-        return "lever"
+    """Detect the ATS source from the apply URL by checking the hostname."""
+    from urllib.parse import urlparse
+
+    try:
+        hostname = urlparse(apply_url).hostname or ""
+    except Exception:
+        return "unknown"
+
+    # Split hostname into parts and check the registered domain
+    parts = hostname.split(".")
+    if len(parts) >= 2:
+        registered_domain = ".".join(parts[-2:])
+        if registered_domain == "greenhouse.io":
+            return "greenhouse"
+        if registered_domain == "lever.co":
+            return "lever"
     return "unknown"
