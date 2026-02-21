@@ -1,12 +1,17 @@
 """
-Resume tailoring with Claude Sonnet.
+Resume tailoring with Claude.
 
-Uses two Anthropic cost-saving features:
+Uses several Anthropic cost-saving features:
   • **Prompt caching** — the system prompt and the LaTeX resume template
     are marked with ``cache_control: ephemeral`` so they are cached across
     requests (90 % savings on cached input tokens).
   • **Message Batches API** — all resume-tailoring requests are submitted
     as a single batch (50 % savings on all tokens).
+  • **Cheaper model** — defaults to Haiku 3.5 instead of Sonnet 4.
+  • **Template stripping** — commented-out LaTeX blocks are removed before
+    sending to avoid wasting tokens on unused content.
+  • **Description truncation** — job descriptions are capped at
+    ``CLAUDE_JOB_DESC_MAX_CHARS`` characters to reduce input tokens.
 
 When only one job needs a resume, the regular (non-batch) Messages API
 is used instead, still with prompt caching.
@@ -15,6 +20,7 @@ is used instead, still with prompt caching.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -83,14 +89,44 @@ Rules
 
 # ── helpers ──────────────────────────────────────────────────────
 
+# Matches lines that are purely LaTeX comments (optional leading whitespace + %).
+_COMMENT_LINE_RE = re.compile(r"^\s*%")
+
+
+def _strip_latex_comments(tex: str) -> str:
+    """Remove pure-comment lines from LaTeX source to save tokens.
+
+    Lines that contain *code* followed by a ``%`` inline comment are kept
+    intact — only lines whose first non-whitespace character is ``%`` are
+    dropped.
+    """
+    return "\n".join(
+        line for line in tex.splitlines()
+        if not _COMMENT_LINE_RE.match(line)
+    )
+
+
 def _read_template() -> str:
-    """Return the raw LaTeX content of the resume template."""
+    """Return the raw LaTeX content of the resume template, with comment
+    lines stripped to reduce token count."""
     path = Path(config.RESUME_TEMPLATE)
-    return path.read_text(encoding="utf-8")
+    raw = path.read_text(encoding="utf-8")
+    return _strip_latex_comments(raw)
+
+
+def _truncate_description(text: str, max_chars: int | None = None) -> str:
+    """Truncate a job description to *max_chars* characters."""
+    limit = max_chars if max_chars is not None else config.CLAUDE_JOB_DESC_MAX_CHARS
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "…"
 
 
 def _job_text(job: dict[str, Any]) -> str:
     """Format the job-specific portion of the user message."""
+    description = _truncate_description(
+        job.get("description", "No description available."),
+    )
     return (
         "=== JOB POSTING ===\n"
         f"Company : {job.get('company', 'N/A')}\n"
@@ -98,7 +134,7 @@ def _job_text(job: dict[str, Any]) -> str:
         f"Location: {job.get('location', 'N/A')}\n"
         f"Type    : {job.get('role_type', 'N/A')}\n"
         f"Why it matched: {job.get('match_reasons', 'N/A')}\n\n"
-        f"Description:\n{job.get('description', 'No description available.')}\n"
+        f"Description:\n{description}\n"
     )
 
 
@@ -166,7 +202,7 @@ def tailor_resume(job: dict[str, Any]) -> str:
 
     response = client.messages.create(
         model=config.CLAUDE_MODEL,
-        max_tokens=4096,
+        max_tokens=config.CLAUDE_MAX_TOKENS,
         temperature=0.3,
         system=_system_block(),
         messages=[{"role": "user", "content": _user_blocks(template_tex, job)}],
@@ -222,7 +258,7 @@ def tailor_resumes_batch(jobs: list[dict[str, Any]]) -> dict[int, str]:
                 "custom_id": f"job-{i}",
                 "params": {
                     "model": config.CLAUDE_MODEL,
-                    "max_tokens": 4096,
+                    "max_tokens": config.CLAUDE_MAX_TOKENS,
                     "temperature": 0.3,
                     "system": _system_block(),
                     "messages": [
