@@ -29,7 +29,9 @@ SCORE_THRESHOLD: int = 60                     # keep jobs with role_score >= thi
 
 # ---------- Claude (resume tailoring) ----------
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL: str = "claude-sonnet-4-20250514"  # Sonnet 4: $3/M in, $15/M out
+CLAUDE_MODEL: str = "claude-haiku-3-5-20241022"  # Haiku 3.5: $0.80/M in, $4/M out
+CLAUDE_MAX_TOKENS: int = 2048                 # one-page resume ≈ 2 000 tokens
+CLAUDE_JOB_DESC_MAX_CHARS: int = 1500         # truncate job descriptions to save input tokens
 RESUME_TEMPLATE: str = "resume_template.tex"  # LaTeX source for the resume
 RESUME_CLS: str = "resume.cls"                # LaTeX class file
 

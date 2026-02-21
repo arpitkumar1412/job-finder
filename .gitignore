@@ -24,6 +24,9 @@ drive_token.json
 *.synctex.gz
 resume_template.pdf
 
+# Test cache
+.pytest_cache/
+
 # OS files
 .DS_Store
 Thumbs.db
