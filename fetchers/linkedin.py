@@ -6,10 +6,13 @@ so we render the page in a headless browser and parse the HTML.
 
 Stealth measures
 ----------------
-* Custom User-Agent and viewport.
-* Random delays (``config.LINKEDIN_MIN_DELAY`` – ``config.LINKEDIN_MAX_DELAY``)
-  between page interactions.
+* Navigate via LinkedIn homepage first (avoids direct-URL bot signal).
+* Custom User-Agent, viewport, locale, and timezone.
+* JS patches to remove ``navigator.webdriver`` flag.
+* Randomised mouse movements (bezier-like curves) before clicks.
+* Random delays between page loads (5–15 s) and micro-actions (2–5 s).
 * Optional residential proxy (``config.LINKEDIN_PROXY``).
+* Configurable headless mode (default ``False`` for stealth).
 """
 
 from __future__ import annotations
@@ -52,6 +55,13 @@ _USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
+# JS snippet injected into every new page to remove bot-detectable flags.
+_STEALTH_JS = """\
+Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+window.chrome = {runtime: {}};
+"""
+
 
 def _strip_html(text: str) -> str:
     """Remove HTML tags and collapse whitespace."""
@@ -61,10 +71,39 @@ def _strip_html(text: str) -> str:
 
 
 def _stealth_delay() -> None:
-    """Sleep for a random interval to mimic human browsing."""
+    """Sleep for a random interval to mimic human browsing (page-level)."""
     delay = random.uniform(config.LINKEDIN_MIN_DELAY, config.LINKEDIN_MAX_DELAY)
     logger.debug("Stealth delay: %.1fs", delay)
     time.sleep(delay)
+
+
+def _action_delay() -> None:
+    """Short random pause between micro-actions (clicks, scrolls)."""
+    delay = random.uniform(
+        config.LINKEDIN_ACTION_MIN_DELAY, config.LINKEDIN_ACTION_MAX_DELAY
+    )
+    logger.debug("Action delay: %.1fs", delay)
+    time.sleep(delay)
+
+
+def _human_mouse_move(page: Page, target_x: float, target_y: float) -> None:
+    """Move the mouse to (*target_x*, *target_y*) via a randomised quadratic
+    bezier curve, simulating a human hand."""
+    vp = page.viewport_size or {"width": 1920, "height": 1080}
+    start_x = random.uniform(0, vp["width"] * 0.5)
+    start_y = random.uniform(0, vp["height"] * 0.5)
+
+    # Single control point for a smooth quadratic bezier curve.
+    ctrl_x = (start_x + target_x) / 2 + random.uniform(-80, 80)
+    ctrl_y = (start_y + target_y) / 2 + random.uniform(-80, 80)
+
+    steps = random.randint(8, 15)
+    for i in range(1, steps + 1):
+        t = i / steps
+        x = (1 - t) ** 2 * start_x + 2 * (1 - t) * t * ctrl_x + t ** 2 * target_x
+        y = (1 - t) ** 2 * start_y + 2 * (1 - t) * t * ctrl_y + t ** 2 * target_y
+        page.mouse.move(x, y)
+        time.sleep(random.uniform(0.01, 0.04))
 
 
 def _make_job_id(url: str, title: str, company: str) -> str:
@@ -80,7 +119,7 @@ def _make_job_id(url: str, title: str, company: str) -> str:
 
 def _launch_browser(pw: Playwright) -> tuple[Browser, BrowserContext]:
     """Launch a Chromium browser with stealth settings."""
-    launch_kwargs: dict[str, Any] = {"headless": True}
+    launch_kwargs: dict[str, Any] = {"headless": config.LINKEDIN_HEADLESS}
     if config.LINKEDIN_PROXY:
         launch_kwargs["proxy"] = {"server": config.LINKEDIN_PROXY}
 
@@ -91,6 +130,8 @@ def _launch_browser(pw: Playwright) -> tuple[Browser, BrowserContext]:
         locale="en-US",
         timezone_id="America/New_York",
     )
+    # Inject stealth JS into every new page / frame.
+    context.add_init_script(_STEALTH_JS)
     return browser, context
 
 
@@ -98,11 +139,19 @@ def _scroll_and_load(page: Page, max_pages: int) -> None:
     """Scroll down and click 'See more jobs' to load additional results."""
     for i in range(max_pages):
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        _stealth_delay()
+        _action_delay()
 
         btn = page.query_selector(_SHOW_MORE_SEL)
         if btn and btn.is_visible():
             logger.info("  Clicking 'See more jobs' (%d/%d) …", i + 1, max_pages)
+            box = btn.bounding_box()
+            if box:
+                _human_mouse_move(
+                    page,
+                    box["x"] + box["width"] / 2,
+                    box["y"] + box["height"] / 2,
+                )
+            _action_delay()
             btn.click()
             _stealth_delay()
         else:
@@ -178,6 +227,18 @@ def fetch_linkedin_jobs() -> list[dict[str, Any]]:
         browser, context = _launch_browser(pw)
         try:
             page = context.new_page()
+
+            # --- Warm-up: land on LinkedIn homepage first (avoids direct-URL
+            # bot signal), then navigate to the jobs search page. ---
+            logger.info("  Warming up: visiting LinkedIn homepage …")
+            page.goto(
+                "https://www.linkedin.com/",
+                wait_until="domcontentloaded",
+                timeout=config.LINKEDIN_PAGE_TIMEOUT,
+            )
+            _stealth_delay()
+
+            logger.info("  Navigating to job search URL …")
             page.goto(url, wait_until="domcontentloaded", timeout=config.LINKEDIN_PAGE_TIMEOUT)
             _stealth_delay()
 

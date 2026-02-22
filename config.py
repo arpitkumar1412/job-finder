@@ -65,7 +65,10 @@ LINKEDIN_SEARCH_URL: str = (
 )
 LINKEDIN_MIN_DELAY: float = 5.0             # minimum seconds between page loads
 LINKEDIN_MAX_DELAY: float = 15.0            # maximum seconds between page loads
+LINKEDIN_ACTION_MIN_DELAY: float = 2.0      # minimum seconds between micro-actions (clicks, scrolls)
+LINKEDIN_ACTION_MAX_DELAY: float = 5.0      # maximum seconds between micro-actions
 LINKEDIN_MAX_PAGES: int = 5                 # max "See more jobs" clicks
+LINKEDIN_HEADLESS: bool = False             # False = stealthier (avoids headless detection)
 # Residential proxy placeholder — set to a real proxy URL to avoid IP bans.
 # Example: "http://user:pass@proxy.example.com:8080"
 LINKEDIN_PROXY: str = os.getenv("LINKEDIN_PROXY", "")
