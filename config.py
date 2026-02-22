@@ -43,5 +43,19 @@ DRIVE_ROOT_FOLDER_ID: str = "1AS9ER8ZXoK1kSPtp9w6S-rDFz19GS78S"  # shared folder
 GOOGLE_SHEET_NAME: str = "Job Matches"
 GOOGLE_SERVICE_ACCOUNT_FILE: str = "service_account.json"
 
+# ---------- Applicant profile (used by auto-apply) ----------
+APPLICANT_FIRST_NAME: str = os.getenv("APPLICANT_FIRST_NAME", "")
+APPLICANT_LAST_NAME: str = os.getenv("APPLICANT_LAST_NAME", "")
+APPLICANT_EMAIL: str = os.getenv("APPLICANT_EMAIL", "")
+APPLICANT_PHONE: str = os.getenv("APPLICANT_PHONE", "")
+APPLICANT_LINKEDIN: str = os.getenv("APPLICANT_LINKEDIN", "")
+APPLICANT_GITHUB: str = os.getenv("APPLICANT_GITHUB", "")
+APPLICANT_WEBSITE: str = os.getenv("APPLICANT_WEBSITE", "")
+
+# ---------- Auto-apply settings ----------
+AUTO_APPLY_WAIT: float = 2.0              # seconds between page interactions
+AUTO_APPLY_PAGE_LOAD_WAIT: float = 10.0   # max wait for page elements (seconds)
+SELENIUM_HEADLESS: bool = True            # run browser in headless mode
+
 # ---------- Networking ----------
 REQUEST_TIMEOUT: int = 30                   # seconds
