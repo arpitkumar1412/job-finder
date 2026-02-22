@@ -199,6 +199,12 @@ def write_matches(matches: list[dict[str, Any]], tab_title: str | None = None) -
 
     rows: list[list[str]] = []
     for m in matches:
+        apply_url = m.get("apply_url", "")
+        # Wrap the URL in a HYPERLINK formula so it is clickable in the sheet.
+        if apply_url:
+            apply_cell = f'=HYPERLINK("{apply_url}", "Apply")'
+        else:
+            apply_cell = ""
         rows.append([
             now_str,
             m.get("company", ""),
@@ -213,7 +219,7 @@ def write_matches(matches: list[dict[str, Any]], tab_title: str | None = None) -
             str(m.get("tech_stack_match", "")),
             str(m.get("penalty", "")),
             m.get("match_reasons", ""),
-            m.get("apply_url", ""),
+            apply_cell,
             m.get("resume_id", ""),
             m.get("resume_link", ""),
             m.get("application_status", ""),
