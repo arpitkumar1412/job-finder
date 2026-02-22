@@ -18,6 +18,7 @@ from typing import Any
 import config
 from fetchers.greenhouse import fetch_all_greenhouse_jobs
 from fetchers.lever import fetch_all_lever_jobs
+from fetchers.linkedin import fetch_linkedin_jobs
 from matcher.similarity import filter_jobs
 from resume.tailor import tailor_resumes_batch
 from resume.compiler import compile_latex
@@ -46,6 +47,15 @@ def fetch_all_jobs() -> list[dict[str, Any]]:
     lever_jobs = fetch_all_lever_jobs()
     jobs.extend(lever_jobs)
     logger.info("Lever total: %d jobs", len(lever_jobs))
+
+    if config.LINKEDIN_ENABLED:
+        logger.info("=== Fetching LinkedIn jobs ===")
+        try:
+            linkedin_jobs = fetch_linkedin_jobs()
+            jobs.extend(linkedin_jobs)
+            logger.info("LinkedIn total: %d jobs", len(linkedin_jobs))
+        except Exception as exc:
+            logger.error("LinkedIn scraping failed: %s", exc)
 
     return jobs
 

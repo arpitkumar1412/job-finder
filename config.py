@@ -57,5 +57,23 @@ AUTO_APPLY_WAIT: float = 2.0              # seconds between page interactions
 AUTO_APPLY_PAGE_LOAD_WAIT: float = 10.0   # max wait for page elements (seconds)
 SELENIUM_HEADLESS: bool = True            # run browser in headless mode
 
+# ---------- LinkedIn scraper (Playwright) ----------
+LINKEDIN_ENABLED: bool = True
+LINKEDIN_SEARCH_URL: str = (
+    "https://www.linkedin.com/jobs/search/"
+    "?keywords=SDE2%20Backend&location=India&f_TPR=r86400"
+)
+LINKEDIN_MIN_DELAY: float = 5.0             # minimum seconds between page loads
+LINKEDIN_MAX_DELAY: float = 15.0            # maximum seconds between page loads
+LINKEDIN_ACTION_MIN_DELAY: float = 2.0      # minimum seconds between micro-actions (clicks, scrolls)
+LINKEDIN_ACTION_MAX_DELAY: float = 5.0      # maximum seconds between micro-actions
+LINKEDIN_MAX_PAGES: int = 5                 # max "See more jobs" clicks
+LINKEDIN_HEADLESS: bool = False             # False = stealthier (avoids headless detection)
+# Residential proxy placeholder — set to a real proxy URL to avoid IP bans.
+# Example: "http://user:pass@proxy.example.com:8080"
+LINKEDIN_PROXY: str = os.getenv("LINKEDIN_PROXY", "")
+LINKEDIN_PAGE_TIMEOUT: int = 60_000         # ms — timeout for the initial search page load
+LINKEDIN_JOB_TIMEOUT: int = 30_000          # ms — timeout for individual job page loads
+
 # ---------- Networking ----------
 REQUEST_TIMEOUT: int = 30                   # seconds
