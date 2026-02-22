@@ -202,7 +202,8 @@ def write_matches(matches: list[dict[str, Any]], tab_title: str | None = None) -
         apply_url = m.get("apply_url", "")
         # Wrap the URL in a HYPERLINK formula so it is clickable in the sheet.
         if apply_url:
-            apply_cell = f'=HYPERLINK("{apply_url}", "Apply")'
+            safe_url = apply_url.replace('"', '""')
+            apply_cell = f'=HYPERLINK("{safe_url}", "Apply")'
         else:
             apply_cell = ""
         rows.append([

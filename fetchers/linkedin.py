@@ -113,7 +113,7 @@ def _scroll_and_load(page: Page, max_pages: int) -> None:
 def _fetch_description(page: Page, job_url: str) -> str:
     """Navigate to a single job page and extract the full description."""
     try:
-        page.goto(job_url, wait_until="domcontentloaded", timeout=30_000)
+        page.goto(job_url, wait_until="domcontentloaded", timeout=config.LINKEDIN_JOB_TIMEOUT)
         _stealth_delay()
         desc_el = page.query_selector(_DESC_SEL)
         if desc_el:
@@ -178,7 +178,7 @@ def fetch_linkedin_jobs() -> list[dict[str, Any]]:
         browser, context = _launch_browser(pw)
         try:
             page = context.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+            page.goto(url, wait_until="domcontentloaded", timeout=config.LINKEDIN_PAGE_TIMEOUT)
             _stealth_delay()
 
             # Load more results by scrolling / clicking "See more"

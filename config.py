@@ -69,6 +69,8 @@ LINKEDIN_MAX_PAGES: int = 5                 # max "See more jobs" clicks
 # Residential proxy placeholder — set to a real proxy URL to avoid IP bans.
 # Example: "http://user:pass@proxy.example.com:8080"
 LINKEDIN_PROXY: str = os.getenv("LINKEDIN_PROXY", "")
+LINKEDIN_PAGE_TIMEOUT: int = 60_000         # ms — timeout for the initial search page load
+LINKEDIN_JOB_TIMEOUT: int = 30_000          # ms — timeout for individual job page loads
 
 # ---------- Networking ----------
 REQUEST_TIMEOUT: int = 30                   # seconds
